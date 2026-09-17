@@ -6,15 +6,25 @@
 #define num_enemies 10
 #define e_size 40
 
+int score = 0;
+int high_score = 0;
 int life = 3;
 int enemy_kill = 0;
+int collision_count = 0; // to check the collision between the invisible point tand the wall
+int down_timer = 0; // for how long the enemies will go down
+int down_distance = screen_height/8;
+int down_count = 0;
 
 typedef struct{
     Vector2 position;
     Vector2 Size;
-    float speed;
     bool active;
 }Bullet;
+
+typedef struct{
+    float position;  // the invisible point that will repreent the collision of all enemies with the wall
+    bool right;
+}point;
 
 typedef struct
 {
@@ -35,21 +45,27 @@ int main(void){
     bool player_active = true;
     Vector2 enemy = {screen_width/2-30, screen_height/8};
     Vector2 p_size = {50, 50};
+
+    point lvl1 = {7*e_size + 210, true};
+
  
     Bullet bullets[max_bullet] = {0};
     Bullet e_bullets[e_max_bull] = {0};
     Enemy enemies[num_enemies] = {0};
 
     lives heart[life];
+
     for(int i = 0; i<life; i++){
         heart[i].size = 50;
-        heart[i].position.y = screen_height - 50;
+        heart[i].position.y = screen_height - 60;
         heart[i].position.x = i*heart[i].size + 20;
     }
+
 
     bool paused = false;
     bool started = false;
     bool game_active = true;
+    bool down = false;
 
     for(int i = 0; i<num_enemies; i++){
         enemies[i].active = true;
@@ -111,6 +127,8 @@ int main(void){
 
             if(game_active){
 
+            DrawText(TextFormat("SCORE : %d", score), 20, 20, 20, WHITE);   
+
             for(int i = 0; i<life; i++){
                 DrawTexturePro(
                     heart_texture,
@@ -156,24 +174,61 @@ int main(void){
                 }
             }
             if(!paused){
-                for(int i = 0; i<num_enemies; i++){
-                    if(enemies[i].active){
-                        if(enemies[i].right){
-                            enemies[i].position.x += 10;
-                            if(enemies[i].position.x> screen_width - (num_enemies - i)*(e_size+30)+30){
-                                enemies[i].position.x = screen_width - (num_enemies - i)*(e_size+30)+30;
-                                enemies[i].right = false;
-                            }
-                        }else{
-                        enemies[i].position.x -= 10;
-                        if(enemies[i].position.x<(i)*(e_size+30)){
-                            enemies[i].position.x = (i)*(e_size+30);
-                            enemies[i].right = true;
+                if(!down){
+                    for(int i = 0; i<num_enemies; i++){
+                        if(enemies[i].active){
+                            if(enemies[i].right){
+                                enemies[i].position.x += 5;
+                                if(enemies[i].position.x> screen_width - (num_enemies - i)*(e_size+30)+30){
+                                    enemies[i].position.x = screen_width - (num_enemies - i)*(e_size+30)+30;
+                                    enemies[i].right = false;
+                                }
+                            }else{
+                            enemies[i].position.x -= 5;
+                            if(enemies[i].position.x<(i)*(e_size+30)){
+                                enemies[i].position.x = (i)*(e_size+30);
+                                enemies[i].right = true;
+                                }
                             }
                         }
                     }
+
+                    if(lvl1.right == true){ 
+                    lvl1.position += 5;
+                    if(lvl1.position > screen_width - (num_enemies)*(e_size+30)+30){
+                         lvl1.right = false;
+                         lvl1.position = screen_width - (num_enemies)*(e_size+30)+30;
+                         collision_count++;
+                    }
+                    
+                    }else{
+                        lvl1.position -= 5;
+                        if(lvl1.position < 0){
+                            lvl1.right = true;
+                            lvl1.position = 0;
+                            collision_count++;
+                        }
+                    }
+
                 }
             
+                 if(collision_count == 3){
+                   if(down_timer <= 10){
+                        down = true;
+                        down_distance += 4;
+                        for(int i = 0; i<num_enemies; i++){
+                           if(enemies[i].active) enemies[i].position.y += 4;
+                        }
+                        down_timer++;
+                    }
+                    else {
+                        down_count++;
+                        collision_count = 0;
+                        down_timer = 0;
+                        down = false;
+                    }      
+                }
+
                 if(t60%20 == 0){
                     for(int i = 0; i<3; i++){
                         int shooter = GetRandomValue(0, num_enemies-1);
@@ -314,54 +369,106 @@ int main(void){
                             if(CheckCollisionRecs(enemyRect, bulletRect)){
                                 enemies[j].active = false;
                                 bullets[i].active = false;
-                                enemy_kill++;
+                                enemy_kill++; 
+                                if(down_count<=10){
+                                    score += 100 - down_count*5;
+                                }else{
+                                    score += 50;
+                                }
                             }  
                         }    
                     }       
                 }
             }
+
+            if(enemy_kill == num_enemies){
+                score *= 2;
+                score += life*200;
+            }
+
             t60 += 1;
-        }if(life == 0){
+        }if(life == 0 || down_distance >= player.y){
+
+            if(score>high_score) high_score = score; 
+
             game_active = false;
             int length1 = MeasureText("GAME OVER", 40);
             int length2 = MeasureText("PRESS ENTER TO RESTART", 20);
+            int length3 = MeasureText(TextFormat("SCORE : %d", score), 25);
+            int length4 = MeasureText(TextFormat("HIGH SCORE : %d", high_score),20);
+
             DrawText("GAME OVER",
-                    (screen_width-length1)/2,
-                    (screen_height-60)/2,
-                    40,
-                    WHITE
-                    );
+                (screen_width-length1)/2,
+                (screen_height-120)/2,
+                40,
+                WHITE
+            );
             DrawText(
-                "PRESS ENTER TO RESTART",
+                TextFormat("SCORE : %d", score),
+                (screen_width-length3)/2,
+                screen_height/2 - 20,
+                25,
+                WHITE
+            ); 
+            DrawText(
+                TextFormat("HIGH SCORE : %d", high_score),
+                (screen_width-length4)/2,
+                screen_height/2 + 10,
+                20,
+                WHITE
+            );       
+            DrawText(
+                "(PRESS ENTER TO RESTART)",
                 (screen_width-length2)/2,
-                (screen_height+20)/2,
+                (screen_height+70)/2,
                 20,
                 YELLOW
             );        
 
         }if(enemy_kill == num_enemies){
+            
+            if(score>high_score) high_score = score; 
+
             game_active = false;
-            int length1 = MeasureText("ENEMIES DESTROYED !", 30);
+            int length1 = MeasureText("ENEMIES DESTROYED!", 30);
             int length2 = MeasureText("PRESS ENTER TO RESTART", 20);
+            int length3 = MeasureText(TextFormat("SCORE : %d", score), 25);
+            int length4 = MeasureText(TextFormat("HIGH SCORE : %d", high_score),20);
+
             DrawText(
-                "ENEMIES DESTROYED !",
+                "ENEMIES DESTROYED!",
                 (screen_width-length1)/2,
-                (screen_height-50)/2,
+                (screen_height-110)/2,
                 30,
                 WHITE
             );
             DrawText(
-                "PRESS ENTER TO RESTART",
+                TextFormat("SCORE : %d", score),
+                (screen_width-length3)/2,
+                screen_height/2 - 20,
+                25,
+                WHITE
+            ); 
+            DrawText(
+                TextFormat("HIGH SCORE : %d", high_score),
+                (screen_width-length4)/2,
+                screen_height/2 + 10,
+                20,
+                WHITE
+            );       
+            DrawText(
+                "(PRESS ENTER TO RESTART)",
                 (screen_width-length2)/2,
-                (screen_height+20)/2,
+                (screen_height+70)/2,
                 20,
                 YELLOW
-            );
+            ); 
             
         }
 
         if(!game_active){
             if(IsKeyPressed(KEY_ENTER)){
+                score = 0;
                 game_active = true;
                 life = 3;
                 enemy_kill = 0;
